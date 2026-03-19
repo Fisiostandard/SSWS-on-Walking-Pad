@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: identity_vault
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity_vault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_HOST=db
+      - DB_PASSWORD=${DB_PASSWORD}
+      - API_TOKEN=${API_TOKEN}
+    ports:
+      - "127.0.0.1:8100:8000"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn identity_vault.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 30"
+
+volumes:
+  postgres_data:

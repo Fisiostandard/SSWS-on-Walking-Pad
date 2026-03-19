@@ -1,0 +1,19 @@
+{% extends "patients/base.html" %}
+{% block title %}Accesso Protetto{% endblock %}
+{% block content %}
+<h1>Valutazione Clinica</h1>
+<p class="subtitle">Accesso riservato — {{ recipient_type }}</p>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<p>Inserisca la password ricevuta per accedere ai risultati e ai video della valutazione.</p>
+
+<form method="post">
+    {% csrf_token %}
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" placeholder="Inserire la password" required autofocus>
+    <button type="submit">Accedi</button>
+</form>
+{% endblock %}

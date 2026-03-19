@@ -1,0 +1,68 @@
+{% extends "patients/base.html" %}
+{% load patients_tags %}
+{% block title %}Risultati — {{ patient_id }}{% endblock %}
+{% block content %}
+<h1>Risultati della Valutazione</h1>
+<p class="subtitle">Paziente: {{ patient_id }}</p>
+
+{% for data in session_data %}
+<h2>Sessione del {{ data.session.date|date:"d/m/Y" }}</h2>
+
+{% if data.session.operator %}
+<p><strong>Operatore:</strong> {{ data.session.operator.get_full_name|default:data.session.operator.username }}</p>
+{% endif %}
+
+{% if data.session.notes %}
+<p><strong>Note:</strong> {{ data.session.notes }}</p>
+{% endif %}
+
+{% if data.tests %}
+<h3>Test Funzionali</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Test</th>
+            <th>Trial</th>
+            <th>Valore</th>
+            <th>Unita</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for test in data.tests %}
+        <tr>
+            <td>{{ test.get_test_type_display }}</td>
+            <td>{{ test.trial_number }}</td>
+            <td>{{ test.value }}</td>
+            <td>{{ test.unit }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if data.videos %}
+<h3>Video</h3>
+{% for video in data.videos %}
+<div class="video-card">
+    <strong>{{ video.title|default:"Video della valutazione" }}</strong>
+    {% if video.duration_seconds %}
+     — {{ video.duration_seconds|floatformat:0 }}s
+    {% endif %}
+    <br>
+    <video controls controlslist="nodownload" disablepictureinpicture>
+        <source src="{% url 'patients:share_video' token=token video_id=video.id %}" type="video/mp4">
+        Il browser non supporta la riproduzione video.
+    </video>
+</div>
+{% endfor %}
+{% endif %}
+
+{% empty %}
+<div class="info">Nessuna sessione disponibile.</div>
+{% endfor %}
+
+<div class="warning">
+    Questo link scade il {{ link.expires_at|date:"d/m/Y H:i" }}.
+    I video sono in streaming e non possono essere scaricati.
+</div>
+{% endblock %}

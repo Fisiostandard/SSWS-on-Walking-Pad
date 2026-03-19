@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WalkingPad — SSWS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #f0f2f5; color: #1a1a2e; min-height: 100vh; padding: 16px; }
+
+  h1 { text-align: center; font-size: 1.5rem; margin-bottom: 16px;
+       color: #1a1a2e; letter-spacing: -0.5px; }
+
+  .card { background: white; border-radius: 16px; padding: 20px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 12px; }
+
+  label { display: block; font-size: 0.8rem; font-weight: 600;
+          color: #666; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  input[type=text] {
+    width: 100%; padding: 10px 12px; border: 2px solid #e8e8e8;
+    border-radius: 10px; font-size: 1rem; transition: border 0.2s;
+  }
+  input:focus { outline: none; border-color: #4361ee; }
+
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; height: 6px; accent-color: #4361ee; cursor: pointer; }
+  .slider-val { font-size: 1.1rem; font-weight: 700; min-width: 60px;
+                text-align: right; color: #4361ee; }
+
+  .btn { padding: 14px; font-size: 1.1rem; font-weight: 700;
+         border: none; border-radius: 14px; cursor: pointer; transition: all 0.2s;
+         width: 100%; }
+  .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+  .btn-start { background: #4361ee; color: white; }
+  .btn-start:hover:not(:disabled) { background: #3451d1; }
+  .btn-stop { background: #e63946; color: white; }
+  .btn-stop:hover:not(:disabled) { background: #c1121f; }
+
+  .btn-ssws { background: #2a9d8f; color: white; font-size: 1.3rem; padding: 18px;
+              letter-spacing: 0.5px; }
+  .btn-ssws:hover:not(:disabled) { background: #21867a; }
+  .btn-ssws:disabled { background: #ccc; }
+
+  /* Chart */
+  .chart-wrap { position: relative; width: 100%; }
+  canvas { width: 100%; height: 220px; display: block; }
+
+  /* Speed display overlay */
+  .speed-overlay { position: absolute; top: 10px; right: 16px; text-align: right; }
+  .speed-now { font-size: 3.5rem; font-weight: 800; color: #4361ee; line-height: 1; }
+  .speed-label { font-size: 0.75rem; color: #999; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .stat-box { background: #f8f9fc; border-radius: 10px; padding: 10px; text-align: center; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; color: #1a1a2e; }
+  .stat-lbl { font-size: 0.7rem; color: #999; margin-top: 2px; text-transform: uppercase; }
+
+  /* SSWS result */
+  .ssws-result { display: none; text-align: center; padding: 16px;
+                 background: #f0faf8; border-radius: 12px; margin-top: 12px; }
+  .ssws-result.visible { display: block; }
+  .ssws-value { font-size: 3rem; font-weight: 800; color: #2a9d8f; }
+  .ssws-detail { font-size: 0.85rem; color: #666; margin-top: 4px; }
+
+  .btn-download { width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 600;
+                  border: 2px solid #4361ee; border-radius: 12px; background: white;
+                  color: #4361ee; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+  .btn-download:hover { background: #4361ee; color: white; }
+  .btn-download:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+
+  .status-bar { text-align: center; font-size: 0.85rem; color: #999; margin-top: 6px; min-height: 18px; }
+  .status-bar.error { color: #e63946; }
+  .status-bar.ok { color: #2a9d8f; }
+
+  .form-row { margin-bottom: 12px; }
+
+  /* Tamper alert */
+  .tamper-banner { display: none; background: #e63946; color: white; padding: 14px 18px;
+                   border-radius: 12px; margin-bottom: 12px; text-align: center;
+                   animation: tamper-pulse 1s ease-in-out 3; }
+  .tamper-banner.visible { display: block; }
+  .tamper-banner h3 { font-size: 1rem; margin-bottom: 4px; }
+  .tamper-banner p { font-size: 0.8rem; opacity: 0.9; }
+  @keyframes tamper-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(230,57,70,0.5); }
+  }
+
+  /* SSWS markers on chart */
+  .marker-legend { display: flex; gap: 16px; justify-content: center; margin-top: 8px;
+                   font-size: 0.75rem; color: #888; }
+  .marker-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+                margin-right: 4px; vertical-align: middle; }
+
+  /* Compat check */
+  .compat-panel { display: none; margin-top: 12px; }
+  .compat-panel.visible { display: block; }
+  .compat-check-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0;
+                        border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; }
+  .compat-check-item:last-child { border-bottom: none; }
+  .compat-icon { font-size: 1.1rem; flex-shrink: 0; line-height: 1.2; }
+  .compat-name { font-weight: 600; color: #1a1a2e; }
+  .compat-detail { font-size: 0.75rem; color: #888; margin-top: 2px; white-space: pre-wrap;
+                   max-height: 60px; overflow-y: auto; }
+  .compat-summary { text-align: center; padding: 16px; border-radius: 12px; margin-top: 12px;
+                    font-weight: 700; font-size: 1.1rem; }
+  .compat-summary.ok { background: #d4edda; color: #155724; }
+  .compat-summary.warn { background: #fff3cd; color: #856404; }
+  .compat-summary.fail { background: #f8d7da; color: #721c24; }
+  .btn-compat { padding: 12px 20px; font-size: 0.95rem; font-weight: 600;
+                border: 2px solid #6c757d; border-radius: 12px; background: white;
+                color: #6c757d; cursor: pointer; transition: all 0.2s; width: 100%; }
+  .btn-compat:hover:not(:disabled) { background: #6c757d; color: white; }
+  .btn-compat:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+  .btn-compat.running { border-color: #e9c46a; color: #e9c46a; }
+
+  /* Admin */
+  .admin-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+  .btn-admin { padding: 8px 16px; border: 2px solid #ddd; border-radius: 8px;
+               background: white; color: #888; font-weight: 600; cursor: pointer;
+               font-size: 0.8rem; }
+  .btn-admin:hover { border-color: #4361ee; color: #4361ee; }
+
+  /* Server upload */
+  .btn-server { width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 600;
+                border: 2px solid #2a9d8f; border-radius: 12px; background: white;
+                color: #2a9d8f; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+  .btn-server:hover:not(:disabled) { background: #2a9d8f; color: white; }
+  .btn-server:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+  .btn-server.sending { border-color: #e9c46a; color: #e9c46a; }
+  .btn-server.success { border-color: #2a9d8f; background: #2a9d8f; color: white; }
+  .btn-server.error { border-color: #e63946; color: #e63946; }
+  .server-msg { text-align: center; font-size: 0.8rem; margin-top: 6px; min-height: 16px; }
+  .server-msg.ok { color: #2a9d8f; }
+  .server-msg.err { color: #e63946; }
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .server-badge { display: inline-block; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+                  margin-left: 6px; vertical-align: middle; }
+  .server-badge.ok { background: #d4edda; color: #155724; }
+  .server-badge.no { background: #f8d7da; color: #721c24; }
+</style>
+</head>
+<body>
+
+<h1>WalkingPad — Misura SSWS</h1>
+
+<!-- Tamper alert -->
+<div class="tamper-banner" id="tamperBanner">
+  <h3 id="tamperTitle">TEST INVALIDATO</h3>
+  <p id="tamperMsg"></p>
+</div>
+
+<!-- Setup (nascosto durante sessione) -->
+<div id="setupPanel">
+  <div class="card">
+    <div class="form-row">
+      <label>Paziente <span id="serverBadge"></span></label>
+      <div class="input-row">
+        <input type="text" id="cognome" placeholder="Cognome" />
+        <input type="text" id="nome" placeholder="Nome" />
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Codice fiscale</label>
+      <input type="text" id="codiceFiscale" placeholder="es. RSSMRA58A01H501Z" maxlength="16"
+             style="text-transform:uppercase" />
+    </div>
+    <div class="form-row">
+      <label>Velocita massima</label>
+      <div class="slider-row">
+        <input type="range" id="maxSpeed" min="1.0" max="8.0" step="0.5" value="6.0"
+               oninput="document.getElementById('maxSpeedVal').textContent = (+this.value).toFixed(1) + ' km/h'">
+        <span class="slider-val" id="maxSpeedVal">6.0 km/h</span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <button class="btn btn-start" id="btnStart" onclick="startSession()">Avvia sessione</button>
+    <div class="status-bar" id="statusBar">Pronto</div>
+  </div>
+
+  <!-- Compatibility check -->
+  <div class="card">
+    <button class="btn-compat" id="btnCompat" onclick="runCompatCheck()">
+      Verifica compatibilita dispositivo
+    </button>
+    <div id="compatMsg" style="text-align:center;font-size:0.8rem;color:#999;margin-top:6px">
+      Test sicuro (solo lettura) — non muove il nastro
+    </div>
+    <div class="compat-panel" id="compatPanel">
+      <div id="compatChecks"></div>
+      <div id="compatSummary"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Sensibilità sensore (sempre visibile, regolabile anche durante sessione) -->
+<div class="card" id="sensCard">
+  <label>Sensibilita sensore piede</label>
+  <div class="slider-row">
+    <span style="font-size:0.75rem;color:#999">Lenta</span>
+    <input type="range" id="sensSlider" min="1" max="3" step="1" value="2"
+           oninput="onSensChange(+this.value)" style="direction:rtl">
+    <span style="font-size:0.75rem;color:#999">Reattiva</span>
+  </div>
+  <div style="text-align:center;margin-top:4px">
+    <span id="sensLabel" style="font-size:0.85rem;font-weight:600;color:#4361ee">Media</span>
+    <span style="font-size:0.75rem;color:#999"> — regolabile anche durante la sessione</span>
+  </div>
+</div>
+
+<!-- Sessione attiva -->
+<div id="sessionPanel" style="display:none">
+
+  <!-- Grafico velocita in tempo reale -->
+  <div class="card">
+    <div class="chart-wrap">
+      <canvas id="speedChart" height="220"></canvas>
+      <div class="speed-overlay">
+        <div class="speed-now" id="speedNowMs">0.00</div>
+        <div class="speed-label">m/s</div>
+        <div style="font-size:1.1rem;font-weight:600;color:#999;margin-top:2px">
+          <span id="speedNowKmh">0.0</span> <span style="font-size:0.75rem">km/h</span>
+        </div>
+      </div>
+    </div>
+    <div class="marker-legend">
+      <span><span class="marker-dot" style="background:#2a9d8f"></span> SSWS segnata</span>
+      <span><span class="marker-dot" style="background:#e63946"></span> Tamper</span>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-val" id="statTime">0:00</div>
+        <div class="stat-lbl">Durata</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="statDist">0</div>
+        <div class="stat-lbl">Metri</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="statSteps">0</div>
+        <div class="stat-lbl">Passi</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pulsante SSWS -->
+  <div class="card">
+    <button class="btn btn-ssws" id="btnSSWS" onclick="markSSWS()" disabled>
+      SEGNA SSWS
+    </button>
+    <div id="sswsHint" style="text-align:center;font-size:0.8rem;color:#999;margin-top:6px">
+      Premi quando il paziente dice che la velocita va bene
+    </div>
+  </div>
+
+  <!-- Risultato SSWS -->
+  <div class="ssws-result" id="sswsResult">
+    <div style="font-size:0.8rem;color:#888;text-transform:uppercase;letter-spacing:1px">SSWS misurata</div>
+    <div class="ssws-value" id="sswsValue">—</div>
+    <div class="ssws-detail" id="sswsDetail"></div>
+  </div>
+
+  <!-- Stop + Download + Upload -->
+  <div class="card">
+    <button class="btn btn-stop" id="btnStop" onclick="stopSession()">Ferma sessione</button>
+    <button class="btn-download" id="btnDownload" disabled onclick="downloadCSV()" style="margin-top:10px">
+      Scarica dati sessione (CSV)
+    </button>
+
+    <!-- Avviso dati mancanti (nascosto se i dati sono compilati) -->
+    <div id="missingDataNotice" style="display:none; margin-top:12px; padding:14px; background:#fff8e6;
+         border:2px solid #e9c46a; border-radius:10px; text-align:center">
+      <div style="font-weight:600; color:#856404; margin-bottom:8px">
+        Dati paziente non inseriti
+      </div>
+      <div style="font-size:0.85rem; color:#666; margin-bottom:10px">
+        Senza cognome, nome e codice fiscale i dati restano solo in locale (CSV).
+        Vuoi inserirli ora per salvare sul server?
+      </div>
+      <div class="input-row" style="margin-bottom:8px">
+        <input type="text" id="cognomePost" placeholder="Cognome" style="font-size:0.9rem;padding:8px" />
+        <input type="text" id="nomePost" placeholder="Nome" style="font-size:0.9rem;padding:8px" />
+      </div>
+      <input type="text" id="cfPost" placeholder="Codice fiscale" maxlength="16"
+             style="width:100%;text-transform:uppercase;font-size:0.9rem;padding:8px;margin-bottom:8px" />
+      <button class="btn-server" onclick="fillDataAndSend()" style="margin-top:0">
+        Salva sul server clinico
+      </button>
+      <div style="font-size:0.75rem;color:#999;margin-top:6px">
+        oppure scarica solo il CSV e chiudi
+      </div>
+    </div>
+
+    <!-- Pulsante invio server (visibile solo se i dati sono completi) -->
+    <button class="btn-server" id="btnSendServer" disabled onclick="sendToServer()" style="display:none">
+      Invia al server clinico
+    </button>
+    <div class="server-msg" id="serverMsg"></div>
+  </div>
+</div>
+
+<!-- Admin -->
+<div style="text-align:center;margin-top:8px">
+  <div class="admin-row">
+    <button class="btn-admin" onclick="restartServer()">Riavvia server</button>
+    <button class="btn-admin" onclick="shutdownServer()">Spegni server</button>
+  </div>
+  <div id="restartMsg" style="font-size:0.75rem;color:#aaa;margin-top:6px"></div>
+</div>
+
+<script>
+// ── Stato ──────────────────────────────────────────────
+let running = false;
+let sse = null;
+let maxSpeed = 6.0;
+let sensitivity = 2; // 1=alta, 2=media, 3=bassa
+const sensNames = { 1: 'Alta', 2: 'Media', 3: 'Bassa' };
+
+function onSensChange(level) {
+  sensitivity = level;
+  document.getElementById('sensLabel').textContent = sensNames[level];
+  fetch('/set_sensitivity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ level: level })
+  });
+}
+
+// Dati per il grafico
+const chartData = [];        // {t: seconds, v: km/h}
+const sswsMarkers = [];      // {t: seconds, v: km/h}
+const tamperMarkers = [];    // {t: seconds}
+let chartStartTime = 0;
+
+// ── Canvas chart ───────────────────────────────────────
+const CHART_PAD_L = 40;
+const CHART_PAD_R = 16;
+const CHART_PAD_T = 12;
+const CHART_PAD_B = 28;
+
+function drawChart() {
+  const canvas = document.getElementById('speedChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+  const plotW = W - CHART_PAD_L - CHART_PAD_R;
+  const plotH = H - CHART_PAD_T - CHART_PAD_B;
+
+  // Sfondo
+  ctx.fillStyle = '#fafbfe';
+  ctx.fillRect(0, 0, W, H);
+
+  if (chartData.length === 0) return;
+
+  const tMax = Math.max(chartData[chartData.length - 1].t, 10);
+  const vMax = Math.max(maxSpeed, ...chartData.map(d => d.v)) + 0.5;
+
+  function tx(t) { return CHART_PAD_L + (t / tMax) * plotW; }
+  function ty(v) { return CHART_PAD_T + plotH - (v / vMax) * plotH; }
+
+  // Griglia orizzontale
+  ctx.strokeStyle = '#eee';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  for (let v = 0; v <= vMax; v += 1.0) {
+    const y = ty(v);
+    ctx.beginPath(); ctx.moveTo(CHART_PAD_L, y); ctx.lineTo(W - CHART_PAD_R, y); ctx.stroke();
+    ctx.fillStyle = '#bbb';
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(0), CHART_PAD_L - 6, y + 4);
+  }
+
+  // Label asse Y
+  ctx.save();
+  ctx.translate(10, CHART_PAD_T + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#aaa';
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('km/h', 0, 0);
+  ctx.restore();
+
+  // Asse tempo
+  const tStep = tMax <= 30 ? 5 : tMax <= 120 ? 15 : 30;
+  ctx.fillStyle = '#bbb';
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  for (let t = 0; t <= tMax; t += tStep) {
+    const x = tx(t);
+    ctx.fillText(fmtTime(t), x, H - 4);
+    ctx.strokeStyle = '#eee';
+    ctx.beginPath(); ctx.moveTo(x, CHART_PAD_T); ctx.lineTo(x, CHART_PAD_T + plotH); ctx.stroke();
+  }
+
+  // Area sotto la curva (sfumatura)
+  if (chartData.length > 1) {
+    const grad = ctx.createLinearGradient(0, CHART_PAD_T, 0, CHART_PAD_T + plotH);
+    grad.addColorStop(0, 'rgba(67,97,238,0.15)');
+    grad.addColorStop(1, 'rgba(67,97,238,0.02)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(tx(chartData[0].t), ty(0));
+    for (const d of chartData) ctx.lineTo(tx(d.t), ty(d.v));
+    ctx.lineTo(tx(chartData[chartData.length - 1].t), ty(0));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Curva velocita
+  ctx.strokeStyle = '#4361ee';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  for (let i = 0; i < chartData.length; i++) {
+    const x = tx(chartData[i].t);
+    const y = ty(chartData[i].v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Marker SSWS
+  for (const m of sswsMarkers) {
+    const x = tx(m.t);
+    const y = ty(m.v);
+    // Linea verticale tratteggiata
+    ctx.strokeStyle = 'rgba(42,157,143,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(x, CHART_PAD_T); ctx.lineTo(x, CHART_PAD_T + plotH); ctx.stroke();
+    ctx.setLineDash([]);
+    // Punto
+    ctx.fillStyle = '#2a9d8f';
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    // Label
+    ctx.fillStyle = '#2a9d8f';
+    ctx.font = 'bold 11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(m.v.toFixed(1) + ' km/h', x, y - 12);
+  }
+
+  // Marker tamper
+  for (const m of tamperMarkers) {
+    const x = tx(m.t);
+    ctx.strokeStyle = 'rgba(230,57,70,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, CHART_PAD_T); ctx.lineTo(x, CHART_PAD_T + plotH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#e63946';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', x, CHART_PAD_T + 14);
+  }
+}
+
+// ── Funzioni ───────────────────────────────────────────
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function updateDisplay(data) {
+  // Aggiorna dati grafico
+  chartData.push({ t: data.elapsed_s, v: data.speed_kmh });
+  drawChart();
+
+  // Velocita corrente (m/s grande, km/h piccolo)
+  const ms = data.speed_kmh / 3.6;
+  document.getElementById('speedNowMs').textContent = ms.toFixed(2);
+  document.getElementById('speedNowKmh').textContent = data.speed_kmh.toFixed(1);
+
+  // Stats
+  document.getElementById('statTime').textContent = fmtTime(data.elapsed_s);
+  document.getElementById('statDist').textContent = Math.round(data.dist_m);
+  document.getElementById('statSteps').textContent = data.steps;
+
+  // Abilita SSWS dopo qualche secondo e velocita > 0
+  if (data.elapsed_s > 3 && data.speed_kmh > 0) {
+    document.getElementById('btnSSWS').disabled = false;
+  }
+}
+
+function markSSWS() {
+  if (chartData.length === 0) return;
+  const last = chartData[chartData.length - 1];
+
+  // Calcola media degli ultimi 10 secondi di dati
+  const windowSec = 10;
+  const cutoff = last.t - windowSec;
+  const recent = chartData.filter(d => d.t >= cutoff && d.v > 0);
+  const avgSpeed = recent.length > 0
+    ? recent.reduce((s, d) => s + d.v, 0) / recent.length
+    : last.v;
+
+  sswsMarkers.push({ t: last.t, v: avgSpeed });
+  drawChart();
+
+  // Salva sul server
+  fetch('/mark_ssws', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speed_kmh: avgSpeed, method: 'manual' })
+  });
+
+  // Mostra risultato
+  const result = document.getElementById('sswsResult');
+  result.classList.add('visible');
+  const msVal = (avgSpeed / 3.6).toFixed(2);
+  document.getElementById('sswsValue').textContent = msVal + ' m/s';
+  document.getElementById('sswsDetail').textContent =
+    `= ${avgSpeed.toFixed(1)} km/h | Media ultimi ${Math.min(windowSec, Math.round(last.t))}s | ` +
+    `Segnata a ${fmtTime(last.t)}`;
+
+  document.getElementById('sswsHint').textContent =
+    sswsMarkers.length === 1
+      ? 'SSWS segnata. Puoi segnarne altre se necessario.'
+      : `${sswsMarkers.length} marcature SSWS registrate.`;
+}
+
+// ── Sessione ───────────────────────────────────────────
+async function startSession() {
+  document.getElementById('tamperBanner').classList.remove('visible');
+  maxSpeed = parseFloat(document.getElementById('maxSpeed').value);
+
+  const cognome = document.getElementById('cognome').value.trim();
+  const nome = document.getElementById('nome').value.trim();
+  const paziente = cognome && nome ? `${cognome} ${nome}` : 'Sessione';
+
+  const payload = {
+    paziente: paziente,
+    max_speed: maxSpeed,
+    sensitivity: sensitivity,
+  };
+
+  setStatus('Connessione al WalkingPad...', '');
+  document.getElementById('btnStart').disabled = true;
+
+  const res = await fetch('/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+
+  if (!data.ok) {
+    setStatus('Errore: ' + data.msg, 'error');
+    document.getElementById('btnStart').disabled = false;
+    return;
+  }
+
+  // Reset dati
+  chartData.length = 0;
+  sswsMarkers.length = 0;
+  tamperMarkers.length = 0;
+  sessionUuid = crypto.randomUUID();
+  document.getElementById('sswsResult').classList.remove('visible');
+
+  // Polling finche il WalkingPad e pronto
+  let attempts = 0;
+  const waitReady = setInterval(async () => {
+    attempts++;
+    try {
+      const s = await fetch('/status').then(r => r.json());
+      setStatus(s.status_msg || 'Avvio in corso...', '');
+      if (s.running) {
+        clearInterval(waitReady);
+        running = true;
+        document.getElementById('setupPanel').style.display = 'none';
+        document.getElementById('sessionPanel').style.display = 'block';
+        document.getElementById('btnSSWS').disabled = true;
+        document.getElementById('btnDownload').disabled = true;
+        setStatus('Sessione in corso', 'ok');
+        drawChart();
+        startSSE();
+      } else if (s.error) {
+        clearInterval(waitReady);
+        setStatus('Errore: ' + s.error, 'error');
+        document.getElementById('btnStart').disabled = false;
+      }
+    } catch(e) {}
+    if (attempts > 40) {
+      clearInterval(waitReady);
+      setStatus('Timeout connessione. Riprova.', 'error');
+      document.getElementById('btnStart').disabled = false;
+    }
+  }, 500);
+}
+
+async function stopSession() {
+  await fetch('/stop', { method: 'POST' });
+  running = false;
+  if (sse) { sse.close(); sse = null; }
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('btnDownload').disabled = false;
+  document.getElementById('serverMsg').textContent = '';
+  setStatus('Sessione terminata.', 'ok');
+
+  // Se nessuna SSWS segnata, prova a calcolarla dalla zona piu stabile
+  if (sswsMarkers.length === 0 && chartData.length > 10) {
+    autoDetectSSWS();
+  }
+
+  // Controlla se i dati paziente sono compilati
+  const cognome = document.getElementById('cognome').value.trim();
+  const nome = document.getElementById('nome').value.trim();
+  const cf = document.getElementById('codiceFiscale').value.trim();
+  const hasData = cognome && nome && cf && cf.length >= 11;
+
+  if (hasData) {
+    // Dati completi: mostra pulsante invio diretto
+    document.getElementById('btnSendServer').style.display = '';
+    document.getElementById('btnSendServer').disabled = false;
+    document.getElementById('btnSendServer').className = 'btn-server';
+    document.getElementById('btnSendServer').textContent = 'Invia al server clinico';
+    document.getElementById('missingDataNotice').style.display = 'none';
+  } else {
+    // Dati mancanti: mostra avviso con form inline
+    document.getElementById('btnSendServer').style.display = 'none';
+    document.getElementById('missingDataNotice').style.display = 'block';
+    // Pre-compila con eventuali dati parziali
+    if (cognome) document.getElementById('cognomePost').value = cognome;
+    if (nome) document.getElementById('nomePost').value = nome;
+    if (cf) document.getElementById('cfPost').value = cf;
+  }
+}
+
+function fillDataAndSend() {
+  // Copia i dati dal form post-sessione ai campi principali
+  const cognome = document.getElementById('cognomePost').value.trim();
+  const nome = document.getElementById('nomePost').value.trim();
+  const cf = document.getElementById('cfPost').value.trim().toUpperCase();
+
+  if (!cognome || !nome) {
+    document.getElementById('serverMsg').textContent = 'Inserisci cognome e nome.';
+    document.getElementById('serverMsg').className = 'server-msg err';
+    return;
+  }
+  if (!cf || cf.length < 11) {
+    document.getElementById('serverMsg').textContent = 'Inserisci un codice fiscale valido.';
+    document.getElementById('serverMsg').className = 'server-msg err';
+    return;
+  }
+
+  // Aggiorna i campi principali
+  document.getElementById('cognome').value = cognome;
+  document.getElementById('nome').value = nome;
+  document.getElementById('codiceFiscale').value = cf;
+
+  // Nascondi il notice e mostra il pulsante standard
+  document.getElementById('missingDataNotice').style.display = 'none';
+  document.getElementById('btnSendServer').style.display = '';
+  document.getElementById('btnSendServer').disabled = false;
+
+  // Invia
+  sendToServer();
+}
+
+function autoDetectSSWS() {
+  // Trova la zona di crociera: finestra stabile nella parte CENTRALE della prova,
+  // con velocita vicina alla velocita massima raggiunta (non fasi di avvio/arresto).
+  //
+  // Criteri:
+  // 1. Scarta il primo 20% e l'ultimo 20% della durata (fasi transitorie)
+  // 2. Solo punti con velocita >= 50% della velocita massima (esclude fasi lente)
+  // 3. Trova la finestra di 15s con la minor SD tra quelle rimaste
+  const windowSize = 15;
+
+  if (chartData.length < 10) return;
+  const totalT = chartData[chartData.length - 1].t;
+  const t20 = totalT * 0.2;
+  const t80 = totalT * 0.8;
+
+  // Velocita massima raggiunta
+  const peakSpeed = Math.max(...chartData.map(d => d.v));
+  const minThreshold = peakSpeed * 0.5; // almeno 50% del picco
+
+  // Filtra: solo parte centrale, solo velocita significativa
+  const central = chartData.filter(d => d.t >= t20 && d.t <= t80 && d.v >= minThreshold);
+  if (central.length < 5) return;
+
+  let bestStart = 0;
+  let bestStd = Infinity;
+  let bestAvg = 0;
+
+  for (let i = 0; i < central.length; i++) {
+    const tStart = central[i].t;
+    const win = central.filter(d => d.t >= tStart && d.t <= tStart + windowSize);
+    if (win.length < 5) continue;
+    const avg = win.reduce((s, d) => s + d.v, 0) / win.length;
+    const variance = win.reduce((s, d) => s + (d.v - avg) ** 2, 0) / win.length;
+    const std = Math.sqrt(variance);
+    if (std < bestStd) {
+      bestStd = std;
+      bestAvg = avg;
+      bestStart = tStart + windowSize / 2;
+    }
+  }
+
+  if (bestAvg > 0) {
+    sswsMarkers.push({ t: bestStart, v: bestAvg });
+    drawChart();
+    fetch('/mark_ssws', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speed_kmh: bestAvg, method: 'auto' })
+    });
+    const result = document.getElementById('sswsResult');
+    result.classList.add('visible');
+    const msAuto = (bestAvg / 3.6).toFixed(2);
+    document.getElementById('sswsValue').textContent = msAuto + ' m/s';
+    document.getElementById('sswsDetail').textContent =
+      `= ${bestAvg.toFixed(1)} km/h | Rilevata automaticamente (zona piu stabile, SD=${bestStd.toFixed(2)})`;
+    document.getElementById('sswsHint').textContent = 'SSWS stimata automaticamente dalla zona piu stabile.';
+  }
+}
+
+function startSSE() {
+  sse = new EventSource('/stream');
+  sse.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'tamper') {
+      showTamperAlert(data.msg);
+      if (chartData.length > 0) {
+        tamperMarkers.push({ t: chartData[chartData.length - 1].t });
+        drawChart();
+      }
+    } else {
+      updateDisplay(data);
+    }
+  };
+}
+
+function showTamperAlert(msg) {
+  const banner = document.getElementById('tamperBanner');
+  const isStepOff = msg.startsWith('STEP-OFF');
+  if (isStepOff) {
+    banner.style.background = '#e9c46a';
+    banner.style.color = '#1a1a2e';
+    document.getElementById('tamperTitle').textContent = 'PAZIENTE SCESO DAL NASTRO';
+    document.getElementById('tamperMsg').textContent = 'Il nastro si e fermato per assenza del paziente.';
+    setStatus('Paziente sceso — nastro fermo', 'error');
+  } else {
+    banner.style.background = '#e63946';
+    banner.style.color = 'white';
+    document.getElementById('tamperTitle').textContent = 'TEST INVALIDATO';
+    document.getElementById('tamperMsg').textContent = msg + ' — Ripetere il trial.';
+    setStatus('TEST INVALIDATO', 'error');
+  }
+  banner.classList.add('visible');
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('statusBar');
+  if (el) { el.textContent = msg; el.className = 'status-bar ' + type; }
+}
+
+function downloadCSV() { window.location.href = '/download'; }
+
+// ── Admin ──────────────────────────────────────────────
+async function restartServer() {
+  document.getElementById('restartMsg').textContent = 'Riavvio in corso...';
+  try { await fetch('/restart', { method: 'POST' }); } catch(e) {}
+  document.getElementById('restartMsg').textContent = 'Attendo il nuovo server...';
+  let retries = 0;
+  const poll = setInterval(async () => {
+    retries++;
+    try {
+      const r = await fetch('/status', { signal: AbortSignal.timeout(1000) });
+      if (r.ok) { clearInterval(poll); location.reload(); }
+    } catch(e) {}
+    if (retries > 15) {
+      clearInterval(poll);
+      document.getElementById('restartMsg').textContent = 'Timeout — ricarica manualmente.';
+    }
+  }, 1000);
+}
+
+async function shutdownServer() {
+  if (!confirm('Spegnere il server WalkingPad?')) return;
+  document.getElementById('restartMsg').textContent = 'Spegnimento...';
+  try { await fetch('/shutdown', { method: 'POST' }); } catch(e) {}
+  document.getElementById('restartMsg').textContent = 'Server spento.';
+}
+
+// ── Invio al server clinico ──────────────────────────
+let sessionUuid = '';  // generato a ogni sessione
+
+async function sendToServer() {
+  const btn = document.getElementById('btnSendServer');
+  const msg = document.getElementById('serverMsg');
+  const cognome = document.getElementById('cognome').value.trim();
+  const nome = document.getElementById('nome').value.trim();
+  const cf = document.getElementById('codiceFiscale').value.trim().toUpperCase();
+
+  // Validazione
+  if (!cognome || !nome) {
+    msg.textContent = 'Inserisci cognome e nome del paziente.';
+    msg.className = 'server-msg err';
+    return;
+  }
+  if (!cf || cf.length < 11) {
+    msg.textContent = 'Inserisci un codice fiscale valido.';
+    msg.className = 'server-msg err';
+    return;
+  }
+  if (sswsMarkers.length === 0) {
+    msg.textContent = 'Nessuna SSWS registrata. Segna la SSWS prima di inviare.';
+    msg.className = 'server-msg err';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.className = 'btn-server sending';
+  btn.textContent = 'Invio in corso...';
+  msg.textContent = '';
+
+  try {
+    const res = await fetch('/send_to_server', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cognome: cognome,
+        nome: nome,
+        codice_fiscale: cf,
+        session_uuid: sessionUuid,
+        notes: '',
+      })
+    });
+    const result = await res.json();
+
+    if (result.ok) {
+      btn.className = 'btn-server success';
+      btn.textContent = 'Inviato al server clinico';
+      msg.textContent = `Salvato: ${result.pseudo_id}, trial #${result.trial_number}, SSWS = ${(result.ssws_ms || 0).toFixed(3)} m/s`;
+      msg.className = 'server-msg ok';
+    } else {
+      btn.className = 'btn-server error';
+      btn.textContent = 'Errore — riprova';
+      btn.disabled = false;
+      msg.textContent = result.msg || 'Errore sconosciuto';
+      msg.className = 'server-msg err';
+    }
+  } catch (e) {
+    btn.className = 'btn-server error';
+    btn.textContent = 'Errore di rete — riprova';
+    btn.disabled = false;
+    msg.textContent = 'Impossibile contattare il server locale.';
+    msg.className = 'server-msg err';
+  }
+}
+
+// Controlla configurazione server all'avvio
+async function checkServerConfig() {
+  try {
+    const res = await fetch('/server_config');
+    const cfg = await res.json();
+    const badge = document.getElementById('serverBadge');
+    if (cfg.clinical_configured && cfg.vault_configured) {
+      badge.innerHTML = '<span class="server-badge ok">Server connesso</span>';
+    } else {
+      badge.innerHTML = '<span class="server-badge no">Server non configurato</span>';
+    }
+  } catch (e) {}
+}
+checkServerConfig();
+
+// ── Compatibility check ──────────────────────────────
+const COMPAT_ICONS = { PASS: '\u2705', FAIL: '\u274c', WARN: '\u26a0\ufe0f', SKIP: '\u23ed\ufe0f' };
+
+async function runCompatCheck() {
+  const btn = document.getElementById('btnCompat');
+  const msg = document.getElementById('compatMsg');
+  const panel = document.getElementById('compatPanel');
+  const checksDiv = document.getElementById('compatChecks');
+  const summaryDiv = document.getElementById('compatSummary');
+
+  btn.disabled = true;
+  btn.className = 'btn-compat running';
+  btn.textContent = 'Verifica in corso...';
+  msg.textContent = 'Connessione al dispositivo — puo richiedere 20-30 secondi';
+  panel.classList.remove('visible');
+  checksDiv.innerHTML = '';
+  summaryDiv.innerHTML = '';
+
+  const res = await fetch('/compat_check', { method: 'POST' });
+  const data = await res.json();
+  if (!data.ok) {
+    btn.disabled = false;
+    btn.className = 'btn-compat';
+    btn.textContent = 'Verifica compatibilita dispositivo';
+    msg.textContent = data.msg;
+    msg.style.color = '#e63946';
+    return;
+  }
+
+  // Poll per risultato
+  const poll = setInterval(async () => {
+    try {
+      const s = await fetch('/compat_check_status').then(r => r.json());
+      if (s.done) {
+        clearInterval(poll);
+        showCompatResults(s);
+        btn.disabled = false;
+        btn.className = 'btn-compat';
+        btn.textContent = 'Ripeti verifica';
+        msg.textContent = '';
+        msg.style.color = '#999';
+      }
+    } catch (e) {}
+  }, 1000);
+}
+
+function showCompatResults(data) {
+  const panel = document.getElementById('compatPanel');
+  const checksDiv = document.getElementById('compatChecks');
+  const summaryDiv = document.getElementById('compatSummary');
+
+  checksDiv.innerHTML = '';
+
+  if (data.error) {
+    checksDiv.innerHTML = `<div style="color:#e63946;padding:12px">Errore: ${data.error}</div>`;
+    panel.classList.add('visible');
+    return;
+  }
+
+  for (const c of data.checks) {
+    const icon = COMPAT_ICONS[c.status] || '?';
+    const crit = c.critical && c.status === 'FAIL' ? ' <span style="color:#e63946;font-size:0.7rem">[CRITICO]</span>' : '';
+    const detail = c.detail ? `<div class="compat-detail">${escHtml(c.detail)}</div>` : '';
+    checksDiv.innerHTML += `
+      <div class="compat-check-item">
+        <span class="compat-icon">${icon}</span>
+        <div>
+          <div class="compat-name">${escHtml(c.name)}${crit}</div>
+          ${detail}
+        </div>
+      </div>`;
+  }
+
+  if (data.compatible === true) {
+    const hasWarns = data.checks.some(c => c.status === 'WARN');
+    if (hasWarns) {
+      summaryDiv.innerHTML = '<div class="compat-summary warn">COMPATIBILE (con avvertenze)</div>';
+    } else {
+      summaryDiv.innerHTML = '<div class="compat-summary ok">COMPATIBILE — il driver funzionera senza modifiche</div>';
+    }
+  } else {
+    summaryDiv.innerHTML = '<div class="compat-summary fail">NON COMPATIBILE — verifica i check marcati [CRITICO]</div>';
+  }
+
+  panel.classList.add('visible');
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Ridisegna su resize
+window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+services:
+  # Database 1: dati clinici pseudonimizzati (video, test, sessioni)
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: clinical_platform
+      POSTGRES_USER: clinical
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinical -d clinical_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Database 2: tabella di raccordo (nomi reali <-> pseudo_id)
+  # SEPARATO dal database clinico per pseudonimizzazione
+  identity_db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: identity_vault
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD}
+    volumes:
+      - identity_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity_vault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      identity_db:
+        condition: service_healthy
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgres://clinical:${DB_PASSWORD}@db:5432/clinical_platform
+      - IDENTITY_DATABASE_URL=postgres://identity:${IDENTITY_DB_PASSWORD}@identity_db:5432/identity_vault
+      - ALLOWED_HOSTS=${DOMAIN},localhost
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py migrate --noinput --database=identity_db &&
+             python manage.py collectstatic --noinput &&
+             gunicorn clinical_platform.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120"
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - media_data:/app/media:ro
+      - static_data:/app/staticfiles:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - web
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+
+volumes:
+  postgres_data:
+  identity_data:
+  media_data:
+  static_data:
+  certbot_conf:
+  certbot_www:

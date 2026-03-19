@@ -1,0 +1,52 @@
+# ========================================
+# CREDENZIALI E SEGRETI
+# ========================================
+.clinical_api_token
+.vault_api_token
+.clinical_server_url
+.vault_server_url
+.allow_http_upload
+.walkingpad_address
+.env
+.env.production
+.env.*
+
+# ========================================
+# DATABASE (possono contenere dati clinici)
+# ========================================
+*.sqlite3
+
+# ========================================
+# FILE PESANTI (non adatti a git)
+# ========================================
+*.epub
+*.caffemodel
+*.tflite
+
+# ========================================
+# LOG E FILE TEMPORANEI
+# ========================================
+walkingpad_log.txt
+walkingpad_error.txt
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# ========================================
+# AMBIENTI VIRTUALI PYTHON
+# ========================================
+venv/
+.venv/
+env/
+
+# ========================================
+# CSV CON DATI PAZIENTI
+# ========================================
+*.csv
+
+# ========================================
+# ARTICOLI PDF (copyright editoriale)
+# ========================================
+articoli\ ssws/
+scihub_download.py
